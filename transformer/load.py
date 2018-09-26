@@ -35,13 +35,14 @@ def load_model(weights_path, num_special_embeds=0):
     arrays = [arr.squeeze() for arr in arrays]
 
     embeds_np = arrays[1]
-    vocab_len = embeds_np.shape[0]
     pos_embeds_np = arrays[0]
     embed_dim = embeds_np.shape[1]
 
-    if num_special_embeds != 0:
+    if num_special_embeds == 0:
+        embeds_np = np.concatenate([embeds_np, pos_embeds_np], 0)
+    else:
         extra_embeds = (np.random.randn(num_special_embeds, embed_dim) * 0.02).astype(np.float32)
-        embeds_np = np.concatenate([embeds_np, extra_embeds], 0)
+        embeds_np = np.concatenate([embeds_np, extra_embeds, pos_embeds_np], 0)
 
     # model parameters
     h = 12
@@ -55,8 +56,6 @@ def load_model(weights_path, num_special_embeds=0):
     encoder = Encoder(EncoderLayer(d_model, attn, ff, dropout), n_layers)
     embeds = Embeddings(d_model, embeds_np.shape[0])
     embeds.lut.weight.data = torch.from_numpy(embeds_np)
-    pos_embeds = Embeddings(d_model, pos_embeds_np.shape[0])
-    pos_embeds.lut.weight.data = torch.from_numpy(pos_embeds_np)
 
     j = 2
     for enc_layer in encoder.layers:
@@ -89,4 +88,4 @@ def load_model(weights_path, num_special_embeds=0):
         ln2.b_2.data = torch.from_numpy(arrays[j + 11].T)
         j += 12
 
-    return embeds, pos_embeds, encoder
+    return embeds, encoder
