@@ -1,16 +1,19 @@
-import numpy as np
-import os, sys
 import json
 from collections import Counter
 from pathlib import Path
 
-import torch
 from torchtext.vocab import Vocab
 
 from transformer.model import *
 
 
-def load_vocab(special_tokens, encoder_path):
+def load_vocab(encoder_path, special_tokens):
+    """
+    Path to json file containing the vocabulary mappings
+    :param encoder_path:
+    :param special_tokens: list of strings to be used as special additional token
+    :return:
+    """
     encoder_dict = json.load(open(encoder_path))
     for tok in special_tokens:
         encoder_dict[tok] = len(encoder_dict)
@@ -36,11 +39,9 @@ def load_model(weights_path, num_special_embeds=0):
     pos_embeds_np = arrays[0]
     embed_dim = embeds_np.shape[1]
 
-    if num_special_embeds == 0:
-        embeds_np = np.concatenate([embeds_np, pos_embeds_np], 0)
-    else:
+    if num_special_embeds != 0:
         extra_embeds = (np.random.randn(num_special_embeds, embed_dim) * 0.02).astype(np.float32)
-        embeds_np = np.concatenate([embeds_np, extra_embeds, pos_embeds_np], 0)
+        embeds_np = np.concatenate([embeds_np, extra_embeds], 0)
 
     # model parameters
     h = 12
@@ -52,8 +53,10 @@ def load_model(weights_path, num_special_embeds=0):
     attn = MultiHeadedAttention(h, d_model)
     ff = PositionwiseFeedForward(d_model, d_ff, dropout)
     encoder = Encoder(EncoderLayer(d_model, attn, ff, dropout), n_layers)
-    embeds = Embeddings(d_model, vocab_len + num_special_embeds)
+    embeds = Embeddings(d_model, embeds_np.shape[0])
     embeds.lut.weight.data = torch.from_numpy(embeds_np)
+    pos_embeds = Embeddings(d_model, pos_embeds_np.shape[0])
+    pos_embeds.lut.weight.data = torch.from_numpy(pos_embeds_np)
 
     j = 2
     for enc_layer in encoder.layers:
@@ -86,4 +89,4 @@ def load_model(weights_path, num_special_embeds=0):
         ln2.b_2.data = torch.from_numpy(arrays[j + 11].T)
         j += 12
 
-    return embeds, encoder
+    return embeds, pos_embeds, encoder
